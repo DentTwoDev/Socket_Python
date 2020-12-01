@@ -1,43 +1,66 @@
 import socket
+import threading
 import sys
+import pickle
 
-# Importamos las librerias necesarias
-import socket
-# Establecemos el tipo de socket/conexion
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-port = 9000 # Puerto de comunicacion
-sock.bind(('localhost',port)) # IP y Puerto de conexion en una Tupla
+class Servidor():
+	"""docstring for Servidor"""
+	def __init__(self, host="localhost", port=4000):
 
-print ("esperando conexiones en el puerto ", port)
-# Vamos a esperar que un cliente se conecte
-# Mientras tanto el script se va a pausar
-sock.listen(5)
-# Cuando un cliente se conecte vamos a obtener la client_addr osea la direccion
-# tambien vamos a obtener la con, osea la conexion que servira para enviar datos y recibir datos
-con, client_addr =  sock.accept()
-print "Nueva Conexion establecida con %s:%d" % (client_addr[0] , client_addr[1])
+		self.clientes = []
 
-text = "Hola, soy el servidor!" # El texto que enviaremos
-con.send(text.encode()) # Enviamos el texto al cliente que se conecta
+		self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		self.sock.bind((str(host), int(port)))
+		self.sock.listen(10)
+		self.sock.setblocking(False)
 
-data = con.recv(4096)
-recibido = data.decode()
-
-print(recibido)
-
-if len(recibido) > 1:
-	if recibido.rstrip() == "salir":
-
-		recibido = "Cliente desconectado"
-		print(recibido)
-		con.close()
-		sock.close()	
-	else:
+		aceptar = threading.Thread(target=self.aceptarCon)
+		procesar = threading.Thread(target=self.procesarCon)
 		
-		print(recibido)
+		aceptar.daemon = True
+		aceptar.start()
+
+		procesar.daemon = True
+		procesar.start()
+
+		while True:
+			msg = input('->')
+			if msg == 'salir':
+				self.sock.close()
+				sys.exit()
+			else:
+				pass
 
 
+	def msg_to_all(self, msg, cliente):
+		for c in self.clientes:
+			try:
+				if c != cliente:
+					c.send(msg)
+			except:
+				self.clientes.remove(c)
 
-#	con.close() # Cerramos la conexion
-#	sock.close() # Cerramos el socket
+	def aceptarCon(self):
+		print("aceptarCon iniciado")
+		while True:
+			try:
+				conn, addr = self.sock.accept()
+				conn.setblocking(False)
+				self.clientes.append(conn)
+			except:
+				pass
 
+	def procesarCon(self):
+		print("ProcesarCon iniciado")
+		while True:
+			if len(self.clientes) > 0:
+				for c in self.clientes:
+					try:
+						data = c.recv(1024)
+						if data:
+							self.msg_to_all(data,c)
+					except:
+						pass
+
+
+s = Servidor()
